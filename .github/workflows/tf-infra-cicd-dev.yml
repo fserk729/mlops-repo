@@ -1,4 +1,4 @@
-name: Terraform
+name: tf-infra-cicd-dev
 
 # Controls when the workflow will run
 on:
