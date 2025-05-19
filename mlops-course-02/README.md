@@ -200,7 +200,7 @@ To integrate and automate your Git repository with a CI/CD pipeline for managing
 Define Workflow Steps: Edit the YAML file to define the CI/CD steps. Here’s an example:
 
 ```YAML
-name: Terraform
+name: tf-infra-cicd-dev
 
 # Controls when the workflow will run
 on:
@@ -214,6 +214,9 @@ on:
 jobs:
   terraform-validate-plan-apply:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mlops-course-02/terraform
 
     steps:
       - name: Checkout repository
