@@ -4,7 +4,7 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Specifies the deployment environment of the resources (e.g., sandbox, dev, tst, acc, prd)"
+  description = "Specifies the deployment environment of the resources (e.g., dev, tst, acc, prd)"
   type        = string
   default     = "sandbox"
 }
