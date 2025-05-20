@@ -3,4 +3,4 @@ outs:
   size: 12107105
   nfiles: 2
   hash: md5
-  path: datgit add data.dvc .gitignorea
+  path: data
