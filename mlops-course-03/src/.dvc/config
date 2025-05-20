@@ -1,0 +1,4 @@
+[core]
+    remote = data
+['remote "data"']
+    url = s3://mlops-course-ehb-data-dev/data
