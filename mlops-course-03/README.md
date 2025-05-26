@@ -121,9 +121,7 @@ git push
 dvc pus
 ```
 
-
-## 3. ML Pipeline Configuration
-
+## 4. ML Pipelines and Configuration
 The `config.yml` file centralizes all pipeline parameters:
 
 ```yaml
@@ -143,54 +141,27 @@ model:
     n_estimators: 10
   store_path: models/
 ```
+The `Ingestion` class loads training and test datasets.
 
-## 4. Pipeline Components
-
-### Data Ingestion Pipeline
-The `Ingestion` class loads training and test datasets:
-
-```python
-class Ingestion:
-    def __init__(self):
-        self.config = self.load_config()
-
-    def load_data(self):
-        train_data_path = self.config['data']['train_path']
-        test_data_path = self.config['data']['test_path']
-        train_data = pd.read_csv(train_data_path)
-        test_data = pd.read_csv(test_data_path)
-        return train_data, test_data
-```
-
-### Data Cleaning Pipeline
 The `Cleaner` class handles data preprocessing:
 - Removes unnecessary columns
 - Handles missing values using imputation strategies
 - Removes outliers using IQR method
 - Preprocesses monetary values
 
-### Model Training Pipeline
 The `Trainer` class implements:
-- **Preprocessing Pipeline**: StandardScaler, MinMaxScaler, OneHotEncoder
+- **Preprocessing**: StandardScaler, MinMaxScaler, OneHotEncoder
 - **SMOTE**: Handles class imbalance
 - **Model Selection**: Supports multiple algorithms (RandomForest, GradientBoosting, DecisionTree)
 - **Model Persistence**: Saves trained models using joblib
 
-### Model Prediction Pipeline
 The `Predictor` class provides:
 - Model loading from saved artifacts
 - Batch prediction capabilities
 - Model evaluation metrics (accuracy, ROC-AUC, classification report)
 
-## 5. Running the ML Pipeline
-
-### Install Dependencies
 ```bash
-pip install -r requirements.txt
-```
-
-### Execute Complete Pipeline
-```bash
+# execute complete pipeline
 python main.py
 ```
 
