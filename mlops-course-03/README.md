@@ -75,7 +75,7 @@ dvc remote add -d storage s3://mlops-course-ehb-data-dev/data # this saves a rem
 git commit .dvc/config -m "configure dvc remote storage" # commit the config
 ```
 
-### Track Data with DVC
+### Data Version Management
 That next steps allows us to define a folder where to push the data so that several members from the same project can access consistent data version, as we will see in a bit. Assuming your dataset currently live in data/:
 ```bash
 # add data to DVC tracking
@@ -108,6 +108,19 @@ git tag -a "v2" -m "deleted a row in train.csv"
 git push
 dvc push
 ```
+In case you'd like to modify your dataset from a past version, you first need to pull the version you'd like to use from DVC, update it as you like and push the new version back to DVC with the appropriate tag:
+```bash
+git log --oneline --grep="data" # explore commit messages to get more information about each dataset version
+git checkout tags/v1 data.dvc   # get data.dvc associated with v1
+dvc pull                        # pull the actual dataset associated with data.dvc
+dvc add data/
+git add data.dvc
+git commit -m "data: updated dataset"
+git tag -a "v1b" -m "deleted a row in train.csv"
+git push
+dvc pus
+```
+
 
 ## 3. ML Pipeline Configuration
 
@@ -207,33 +220,6 @@ Accuracy Score: 0.8547, ROC AUC Score: 0.8932
    macro avg       0.85      0.80      0.82      2000
 weighted avg       0.85      0.85      0.85      2000
 =====================================================
-```
-
-## 6. Data Version Management
-
-### Updating Data
-When new data arrives:
-```bash
-# Update your data files
-# Then track the changes
-dvc add data/
-dvc push
-
-# Commit the updated .dvc file
-git add data.dvc
-git commit -m "Update dataset v2.0"
-git tag -a "data-v2.0" -m "Dataset version 2.0"
-```
-
-### Switching Data Versions
-```bash
-# Checkout specific data version
-git checkout data-v1.0
-dvc checkout
-
-# Return to latest
-git checkout main
-dvc checkout
 ```
 
 ## 7. Model Containerization
