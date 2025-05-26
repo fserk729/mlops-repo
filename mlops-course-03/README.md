@@ -193,77 +193,81 @@ weighted avg       0.85      0.85      0.85      2000
 =====================================================
 ```
 
-## 7. Model Containerization
-
-### Create Dockerfile
+## 5. Model Containerization
+Create `Dockerfile` file in `src/`
 ```dockerfile
-FROM python:3.9-slim
+# Use the official Python base image
+FROM python:3.13-slim
 
+# Set the working directory inside the container
 WORKDIR /app
 
+# Copy the application code and models to the working directory
+COPY app.py .
+COPY models/ ./models/
+
+# Copy the requirements file to the working directory
 COPY requirements.txt .
+
+# Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
-EXPOSE 8000
-
-CMD ["python", "app.py"]
+# Run the FastAPI application using uvicorn server
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
 ```
 
-### Build and Run Container
+Create `app.py` in `src/`
+```Python
+from fastapi import FastAPI
+from pydantic import BaseModel
+import pandas as pd
+import joblib
+
+app = FastAPI()
+
+class InputData(BaseModel):
+    Gender: str
+    Age: int
+    HasDrivingLicense: int
+    RegionID: float
+    Switch: int
+    PastAccident: str
+    AnnualPremium: float
+
+model = joblib.load('models/model.pkl')
+
+@app.get("/")
+async def root():
+    return {"health_check": "OK"}
+
+@app.post("/predict")
+async def predict(input_data: InputData):
+    
+        df = pd.DataFrame([input_data.model_dump().values()], 
+                          columns=input_data.model_dump().keys())
+        pred = model.predict(df)
+        return {"predicted_class": int(pred[0])}
+```
+
 ```bash
 # Build Docker image
-docker build -t mlops-course-03:latest .
-
+docker build -t mlops-course-03-image .
 # Run container
-docker run -p 8000:8000 mlops-course-03:latest
+docker run -d --name mlops-course-03-container -p 80:80 mlops-course-03-image
 ```
-
-## 8. Infrastructure Integration
-
-The course reuses infrastructure from mlops-course-02:
-- **S3 Backend**: Terraform state management
-- **S3 Data Storage**: DVC remote storage
-- **Environment Configuration**: Dev/Test/Prod separation
-
-### Deploy Infrastructure
+You can access the API docs locally at `http://127.0.0.1/docs` and make predictionsat `http://127.0.0.1/predict`:
 ```bash
-cd terraform/
-terraform init --backend-config='backends/dev.conf'
-terraform plan --var-file='environments/dev.tfvars'
-terraform apply --var-file='environments/dev.tfvars'
+curl -X 'POST' \
+  'http://127.0.0.1/predict' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "Gender": "Male",
+  "Age": 49,
+  "HasDrivingLicense": 1,
+  "RegionID": 28,
+  "Switch": 0,
+  "PastAccident": "1-2 Year",
+  "AnnualPremium": 1885.05
+}'
 ```
-
-## 9. Best Practices Implemented
-
-### Data Management
-- **Version Control**: All data changes tracked with DVC
-- **Remote Storage**: Centralized data access via S3
-- **Data Validation**: Automated data quality checks
-
-### Model Management  
-- **Reproducible Pipelines**: Consistent model training process
-- **Parameter Tracking**: All hyperparameters versioned in config
-- **Model Artifacts**: Serialized models with metadata
-
-### DevOps Integration
-- **Containerization**: Models packaged for deployment
-- **Infrastructure as Code**: Terraform for resource management
-- **Pipeline Automation**: Automated ML workflows
-
-## 10. Next Steps
-
-This course establishes the foundation for advanced MLOps practices:
-- **Model Monitoring**: Track model performance in production
-- **A/B Testing**: Compare model versions
-- **Auto-Retraining**: Trigger retraining on data drift
-- **Multi-Environment Deployment**: Staging and production pipelines
-
-## Key Benefits
-
-✅ **Data Reproducibility**: Every dataset version is tracked and recoverable  
-✅ **Pipeline Automation**: End-to-end ML workflow automation  
-✅ **Scalable Deployment**: Containerized models for any environment  
-✅ **Team Collaboration**: Shared data and model artifacts  
-✅ **Production Ready**: Infrastructure and deployment patterns for real ML systems
