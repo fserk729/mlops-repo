@@ -1,260 +1,280 @@
-# AWS Infrastructure Setup with Terraform and GitHub Actions
+# Data Versioning and Model Containerization with DVC and Docker
 
-Now that you've provisioned infrastructure resources using Terraform locally, it's time to prepare for real-world collaboration and automation. At maturity level 0, each developer works in isolation, managing their own Terraform state file locally. 
+This guide demonstrates how to implement data versioning using DVC (Data Version Control) and containerize ML models for deployment. You'll learn to track data changes, manage ML pipelines, and package models in Docker containers for scalable, reproducible MLOps workflows.
 
-Problem: 
-- Collaboration is hard, changes conflict, and there’s a risk of accidental resource changes. 
-![tf-aws-setup-maturity-lvl-0-problem](assets/tf-aws-setup-maturity-lvl-0-problem.png)
-
-Solution:
-- Use a remote backend for shared Terraform state.
-- Manage cloud resources with a dedicated machine user for automation.
-- Automate provisioning via GitHub Actions, making infrastructure changes repeatable, auditable, and safe.
-![tf-aws-setup-maturity-lvl-0-solution-github-actions](assets/tf-aws-setup-maturity-lvl-0-solution-github-actions.png)
+![mlops-data-versioning-containerization-design](assets/mlops-course-03-design.png)
 
 ## Prerequisites
 
-* [Terraform](https://developer.hashicorp.com/terraform/downloads)
+* [Python](https://www.python.org)
+* [Docker](https://docs.docker.com/get-docker/)
+* [DVC](https://dvc.org/doc/install)
 * [AWS CLI](https://aws.amazon.com/cli/)
-* [GitHub](https://docs.github.com/en/get-started/start-your-journey/creating-an-account-on-github)
 
-## 1. Setup Terraform Remote Backend
-Before we setup the remote backend for the Terraform state file so that everyone works with the same infrastructure state and have features such as:
-- State Locking - prevents concurrent changes
-- Versioning - rollback to earlier state if needed
-- Encryption - sensitive data in state file is encrypted
+## Problem Statement
 
-We first need to avoid the chicken or the egg problem by provisioning an S3 Bucket to store our Terraform state file. Feel free to use AWS Console (UI), AWS SDKs or CLI. While we're at it we will provision the IAM user (Terraform machine user to be used for automation with GitHub Actions) as well.
+As ML projects mature, several challenges emerge:
+- **Data Drift**: Training data changes over time, requiring versioning
+- **Pipeline Reproducibility**: Need to track data transformations and model training steps
+- **Model Deployment**: Models need to be packaged consistently for production
+- **Collaboration**: Teams need shared access to datasets and model artifacts
+
+## Solution Architecture
+
+This course implements:
+- **DVC for Data Versioning and Pipeline Management**: Track large datasets and automate ML pipelines
+- **Docker Containerization**: Package models for consistent deployment
+
+## 1. Project Structure
+
+```
+mlops-course-03/
+├── src/
+│   ├── data/
+│   ├── models/
+│   ├── pipelines/
+│   │   ├── clean.py          # Data cleaning pipeline
+│   │   ├── ingest.py         # Data ingestion pipeline
+│   │   ├── predict.py        # Model prediction pipeline
+│   │   └── train.py          # Model training pipeline
+│   ├── .gitignore            # Files to ignore in Git
+│   ├── config.yml           # ML pipeline configuration
+│   ├── main.py             # Main pipeline orchestrator
+│   └── requirements.txt    # Python dependencies
+├── terraform/              # Infrastructure as Code
+└── README.md
+```
+
+## 2. Data Version Control Setup
+
+### Initialize DVC Repository
 ```bash
-AWS CLI
--------
-
-# Specify the username for the new IAM user
-USER_NAME="terraform_user"
-
-# Create IAM User and capture the response
-USER_RESPONSE=$(aws iam create-user --user-name "$USER_NAME")
-
-# Check the Amazon Resource Name (ARN) from create-user response.
-echo $USER_RESPONSE                                          
-
-# Attach Admin Access Policy to IAM User
-aws iam attach-user-policy --user-name "$USER_NAME" --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
-
-# Create Access and Secret Access Keys
-CREDS_JSON=$(aws iam create-access-key --user-name "$USER_NAME")
-
-# Check Access and Secret Access Keys from create-access-key response.
-echo $CREDS_JSON                                          
-
-# Create S3 Bucket
-S3_BUCKET_NAME="tf-remote-backends-ehb"
-aws s3 mb "s3://$S3_BUCKET_NAME" --region "eu-north-1"
-
-# Enable Versioning for S3 Bucket
-aws s3api put-bucket-versioning --bucket "$S3_BUCKET_NAME" --versioning-configuration Status=Enabled
-```
-## 2. Improve Project Structure
-Organize your infrastructure code for clarity and scalability:
-```
-mlops-course-02  
-├── assets/  
-├── docs/  
-├── src/  
-├── terraform/  
-│   ├── backends/  
-│   │   ├── dev.conf  
-│   │   ├── prd.conf  
-│   │   └── tst.conf  
-│   ├── environments/  
-│   │   ├── dev.tfvars  
-│   │   ├── prd.tfvars  
-│   │   └── tst.tfvars  
-│   ├── modules/  
-│   │   └── s3-bucket/  
-│   │       ├── locals.tf  
-│   │       ├── main.tf  
-│   │       ├── outputs.tf  
-│   │       ├── variables.tf  
-│   │       └── README.md  
-│   ├── provider.tf  
-│   ├── s3_buckets.tf  
-│   └── variables.tf  
-├── README.md
-```
-All Terraform files live under the `terraform/` folder
-- Modularization: The new structure introduces Terraform `modules` for reusable, scalable infrastructure components.
-- Multiple Environment Support: Separate `environments/dev.tfvars` and `backends/dev.conf` for environment-specific configuration.
-- Variable Management: Centralized in `variables.tf`.
-
-## 3. Terraform Configuration
-Uses variables for AWS region `var.aws_region` to allow for different environments.
-Configures a remote backend `backend "s3" {}` so state is managed in S3, not locally.
-
-`provider.tf`
-```hcl
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">=5.97"
-    }
-  }
-  
-  backend "s3" {}
-}
-
-provider "aws" {
-  region = var.aws_region
-}
+cd mlops-course-03/src
+dvc init
 ```
 
-Each environment has its own backend configuration file, parameterizing the S3 bucket, state file key, and region.
+### Configure Remote Storage
+DVC is configured to use your S3 bucket from mlops-course-02:
 
-`backends/{env}.conf`
-```terraform
-bucket  = "terraform-backends-ehb"
-key     = "terraform-{env}.tfstate"
-region  = "eu-north-1"
-```
-All environment-specific or customizable settings (like region, environment, resource delimiter, and S3 buckets) are defined as variables.
-
-`variables.tf`
-```hcl
-variable "aws_region" {
-  description = "AWS region"
-  default     = "eu-north-1"
-}
-
-variable "environment" {
-  description = "Specifies the deployment environment of the resources (e.g., sandbox, dev, tst, acc, prd)"
-  type        = string
-  default     = "sandbox"
-}
-
-variable "delimiter" {
-  description = "Resource name delimiter"
-  type        = string
-  default     = "-"
-}
-
-variable "s3_buckets" {
-  description = "A list of S3 Buckets"
-  type        = list(any)
-  default     = []
-}
+```yaml
+# .dvc/config
+[core]
+    remote = storage
+['remote "storage"']
+    url = s3://mlops-course-ehb-data-dev/data
 ```
 
-Uses a module to define S3 buckets, leveraging the for_each construct to dynamically create as many buckets as you need, with consistent naming and tagging.
-
-`s3_buckets.tf`
-```hcl
-module "s3_bucket" {
-  for_each = { for s3 in var.s3_buckets : s3.key => s3 }
-  source   = "./modules/s3-bucket"
-
-  bucket = join(var.delimiter, [each.value.key, var.environment])
-  tags   = merge(try(each.value.tags, {}), { environment = var.environment })
-}
-```
-
-All variable values specific to an environment. Easy switching between dev, test, and prod by changing which tfvars file you use.
-
-`environments/{env}.tfvars`
-```hcl
-environment = "dev"
-location    = "eu-north-1"
-
-
-s3 = [
-  {
-    key  = "mlops-course-ehb-data"
-    tags = {}
-  }
-]
-```
-
-### 4. Automate with GitHub Actions (CI/CD)
-To integrate and automate your Git repository with a CI/CD pipeline for managing infrastucture and other artifacts, you'll typically use service like GitHub Actions, GitLab CI/CD, or Jenkins. Here we will use GitHub Actions.
-
-**Set Up Your AWS Credentials**
-
-1. Create AWS IAM User: In AWS IAM, create a new user with programmatic access and assign appropriate permissions. Store the AWS Access Key ID and Secret Access Key. You’ll need these for your CI/CD pipeline. (already done using AWS CLI)
-
-2. Use Environment Variables: The recommended way to provide AWS credentials to Terraform is through environment variables. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as environment variables in your CI/CD pipeline settings.
-
-3. GitHub Secrets:
-- Store your AWS Access Key and Secret Key in GitHub Secrets. GitHub Secrets provide a secure way to store and manage sensitive information in your GitHub repository.
-- In your GitHub repository, go to Settings > Secrets and variables > Actions > Repository secrets and add your AWS credentials as secrets.
-
-**Prepare Your GitHub Repository**
-
-1. Create or Use an Existing Repository: If you haven’t already, create a new GitHub repository or use an existing one for your Terraform code.
-2. Push Your Terraform Code: Ensure your Terraform code (.tf files) is in the repository.
-
-
-**Create GitHub Actions Workflow**
-
-1. Create Workflow Directory: In your repository, create a directory named .github/workflows if it doesn’t already exist.
-2. Add Workflow File: Create a new YAML file in the workflows directory (e.g., tf-infra-cicd-dev.yml).
-Define Workflow Steps: Edit the YAML file to define the CI/CD steps. Here’s an example:
-
-```YAML
-name: tf-infra-cicd-dev
-
-# Controls when the workflow will run
-on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-jobs:
-  terraform-validate-plan-apply:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mlops-course-02/terraform
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
-
-      - name: Terraform Format
-        run: terraform fmt -check
-        continue-on-error: true
-
-      - name: Terraform Init
-        run: terraform init --backend-config='backends/dev.conf'
-
-      - name: Terraform Validate
-        run: terraform validate -no-color
-
-      - name: Terraform Plan
-        run: terraform plan -no-color --var-file='environments/dev.tfvars'
-
-      - name: Terraform Apply
-        run: terraform apply --var-file='environments/dev.tfvars' -auto-approve
-```
-
-**Push Workflow File to GitHub**
-
-1. Commit the Workflow File: Add the .github/workflows/tf-infra-cicd-dev.yml file to your repository, commit, and push it to GitHub.
+### Track Data with DVC
 ```bash
-git add .github/workflows/tf-infra-cicd-dev.yml
-git commit -m "Add Terraform CI/CD workflow"
-git push origin main
+# Add data to DVC tracking
+dvc add data/
+
+# Push data to remote storage
+dvc push
+
+# Commit DVC files to Git
+git add data.dvc .dvcignore
+git commit -m "Add data tracking with DVC"
 ```
-Verify Actions: Go to the ‘Actions’ tab in your GitHub repository to see the CI/CD pipeline in action after the push.
+
+## 3. ML Pipeline Configuration
+
+The `config.yml` file centralizes all pipeline parameters:
+
+```yaml
+data: 
+  train_path: data/train.csv
+  test_path: data/test.csv
+
+train:
+  test_size: 0.2
+  random_state: 42
+  shuffle: true
+
+model:
+  name: GradientBoostingClassifier
+  params:
+    max_depth: null
+    n_estimators: 10
+  store_path: models/
+```
+
+## 4. Pipeline Components
+
+### Data Ingestion Pipeline
+The `Ingestion` class loads training and test datasets:
+
+```python
+class Ingestion:
+    def __init__(self):
+        self.config = self.load_config()
+
+    def load_data(self):
+        train_data_path = self.config['data']['train_path']
+        test_data_path = self.config['data']['test_path']
+        train_data = pd.read_csv(train_data_path)
+        test_data = pd.read_csv(test_data_path)
+        return train_data, test_data
+```
+
+### Data Cleaning Pipeline
+The `Cleaner` class handles data preprocessing:
+- Removes unnecessary columns
+- Handles missing values using imputation strategies
+- Removes outliers using IQR method
+- Preprocesses monetary values
+
+### Model Training Pipeline
+The `Trainer` class implements:
+- **Preprocessing Pipeline**: StandardScaler, MinMaxScaler, OneHotEncoder
+- **SMOTE**: Handles class imbalance
+- **Model Selection**: Supports multiple algorithms (RandomForest, GradientBoosting, DecisionTree)
+- **Model Persistence**: Saves trained models using joblib
+
+### Model Prediction Pipeline
+The `Predictor` class provides:
+- Model loading from saved artifacts
+- Batch prediction capabilities
+- Model evaluation metrics (accuracy, ROC-AUC, classification report)
+
+## 5. Running the ML Pipeline
+
+### Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Execute Complete Pipeline
+```bash
+python main.py
+```
+
+The pipeline will:
+1. **Ingest** data from configured sources
+2. **Clean** and preprocess the data
+3. **Train** the specified model with SMOTE balancing
+4. **Evaluate** model performance on test data
+5. **Save** the trained model for deployment
+
+### Sample Output
+```
+INFO:root:Data ingestion completed successfully
+INFO:root:Data cleaning completed successfully  
+INFO:root:Model training completed successfully
+INFO:root:Model evaluation completed successfully
+
+============= Model Evaluation Results ==============
+Model: GradientBoostingClassifier
+Accuracy Score: 0.8547, ROC AUC Score: 0.8932
+
+              precision    recall  f1-score   support
+           0       0.86      0.95      0.90      1500
+           1       0.85      0.65      0.74       500
+
+    accuracy                           0.85      2000
+   macro avg       0.85      0.80      0.82      2000
+weighted avg       0.85      0.85      0.85      2000
+=====================================================
+```
+
+## 6. Data Version Management
+
+### Updating Data
+When new data arrives:
+```bash
+# Update your data files
+# Then track the changes
+dvc add data/
+dvc push
+
+# Commit the updated .dvc file
+git add data.dvc
+git commit -m "Update dataset v2.0"
+git tag -a "data-v2.0" -m "Dataset version 2.0"
+```
+
+### Switching Data Versions
+```bash
+# Checkout specific data version
+git checkout data-v1.0
+dvc checkout
+
+# Return to latest
+git checkout main
+dvc checkout
+```
+
+## 7. Model Containerization
+
+### Create Dockerfile
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["python", "app.py"]
+```
+
+### Build and Run Container
+```bash
+# Build Docker image
+docker build -t mlops-course-03:latest .
+
+# Run container
+docker run -p 8000:8000 mlops-course-03:latest
+```
+
+## 8. Infrastructure Integration
+
+The course reuses infrastructure from mlops-course-02:
+- **S3 Backend**: Terraform state management
+- **S3 Data Storage**: DVC remote storage
+- **Environment Configuration**: Dev/Test/Prod separation
+
+### Deploy Infrastructure
+```bash
+cd terraform/
+terraform init --backend-config='backends/dev.conf'
+terraform plan --var-file='environments/dev.tfvars'
+terraform apply --var-file='environments/dev.tfvars'
+```
+
+## 9. Best Practices Implemented
+
+### Data Management
+- **Version Control**: All data changes tracked with DVC
+- **Remote Storage**: Centralized data access via S3
+- **Data Validation**: Automated data quality checks
+
+### Model Management  
+- **Reproducible Pipelines**: Consistent model training process
+- **Parameter Tracking**: All hyperparameters versioned in config
+- **Model Artifacts**: Serialized models with metadata
+
+### DevOps Integration
+- **Containerization**: Models packaged for deployment
+- **Infrastructure as Code**: Terraform for resource management
+- **Pipeline Automation**: Automated ML workflows
+
+## 10. Next Steps
+
+This course establishes the foundation for advanced MLOps practices:
+- **Model Monitoring**: Track model performance in production
+- **A/B Testing**: Compare model versions
+- **Auto-Retraining**: Trigger retraining on data drift
+- **Multi-Environment Deployment**: Staging and production pipelines
+
+## Key Benefits
+
+✅ **Data Reproducibility**: Every dataset version is tracked and recoverable  
+✅ **Pipeline Automation**: End-to-end ML workflow automation  
+✅ **Scalable Deployment**: Containerized models for any environment  
+✅ **Team Collaboration**: Shared data and model artifacts  
+✅ **Production Ready**: Infrastructure and deployment patterns for real ML systems
