@@ -2,7 +2,6 @@
 
 This guide demonstrates how to implement data versioning using DVC (Data Version Control) and containerize ML models for deployment. You'll learn to track data changes, manage ML pipelines, and package models in Docker containers for scalable, reproducible MLOps workflows.
 
-![mlops-data-versioning-containerization-design](assets/mlops-course-03-design.png)
 
 ## Prerequisites
 
@@ -18,12 +17,15 @@ As ML projects mature, several challenges emerge:
 - **Model Deployment**: Models need to be packaged consistently for production
 - **Collaboration**: Teams need shared access to datasets and model artifacts
 
+![mlops-continuous-delivery-and-automation-pipelines-in-machine-learning-2-manual-ml](assets/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning-2-manual-ml.svg)
+
 ## Solution Architecture
 
 This course implements:
 - **DVC for Data Versioning and Pipeline Management**: Track large datasets and automate ML pipelines
 - **Docker Containerization**: Package models for consistent deployment
 
+![mlops-code-maturity-level-1-part-0](assets/mlops-code-maturity-level-1-part-0.png)
 ## 1. Project Structure
 
 ```bash
