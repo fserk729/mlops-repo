@@ -45,7 +45,15 @@ mlops-course-03/
 └── README.md
 ```
 
-## 2. Data Version Control Setup
+## 2. Python Virtual Environment Setup (you can use [uv](https://docs.astral.sh/uv/) as an alternative)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## 2. DVC Remote Storage as a datastore
+The role of a datastore is to store and manage collections of data. DVC works on top of Git and is language- and framework-agnostic. It can store data locally or in storage providers such as AWS S3, Azure Blob Storage, SFTP and HDFS; in our case, we will store it in AWS S3. To avoid performing diffs on large and potentially binary files, DVC creates MD5 hash of each file instead and those are versioned by Git.
 
 ### Initialize DVC Repository
 ```bash
