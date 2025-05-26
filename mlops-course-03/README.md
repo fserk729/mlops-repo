@@ -8,7 +8,6 @@ This guide demonstrates how to implement data versioning using DVC (Data Version
 
 * [Python](https://www.python.org)
 * [Docker](https://docs.docker.com/get-docker/)
-* [DVC](https://dvc.org/doc/install)
 * [AWS CLI](https://aws.amazon.com/cli/)
 
 ## Problem Statement
@@ -27,7 +26,7 @@ This course implements:
 
 ## 1. Project Structure
 
-```
+```bash
 mlops-course-03/
 ├── src/
 │   ├── data/
@@ -38,10 +37,10 @@ mlops-course-03/
 │   │   ├── predict.py        # Model prediction pipeline
 │   │   └── train.py          # Model training pipeline
 │   ├── .gitignore            # Files to ignore in Git
-│   ├── config.yml           # ML pipeline configuration
-│   ├── main.py             # Main pipeline orchestrator
-│   └── requirements.txt    # Python dependencies
-├── terraform/              # Infrastructure as Code
+│   ├── config.yml            # ML pipeline configuration
+│   ├── main.py               # Main pipeline orchestrator
+│   └── requirements.txt      # Python dependencies
+├── terraform/                # Infrastructure as Code
 └── README.md
 ```
 
@@ -52,37 +51,62 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 2. DVC Remote Storage as a datastore
+## 3. DVC Remote Storage as a datastore
 The role of a datastore is to store and manage collections of data. DVC works on top of Git and is language- and framework-agnostic. It can store data locally or in storage providers such as AWS S3, Azure Blob Storage, SFTP and HDFS; in our case, we will store it in AWS S3. To avoid performing diffs on large and potentially binary files, DVC creates MD5 hash of each file instead and those are versioned by Git.
 
 ### Initialize DVC Repository
 ```bash
 cd mlops-course-03/src
-dvc init
+dvc init --subdir # initialize dvc inside a SCM tracked subdirectory
+git commit -m "initialize dvc"
+```
+After running dvc init, DVC sets up the project with the necessary configuration to start tracking data. Your directory structure will look like this:
+```
+src/
+├── .dvc/                 # DVC config and internal files
+├── .dvcignore            # Like .gitignore but for DVC operations
+└── (your project files)
 ```
 
 ### Configure Remote Storage
-DVC is configured to use your S3 bucket from mlops-course-02:
-
-```yaml
-# .dvc/config
-[core]
-    remote = storage
-['remote "storage"']
-    url = s3://mlops-course-ehb-data-dev/data
+DVC is configured to use your S3 bucket from mlops-course-02. DVC will store all relevant information in the hidden folder .dvc, so that last step adds this folder to our Git repository (including the DVC config file .dvc/config).:
+```bash
+dvc remote add -d storage s3://mlops-course-ehb-data-dev/data # this saves a remote entry in .dvc/config:
+git commit .dvc/config -m "configure dvc remote storage" # commit the config
 ```
 
 ### Track Data with DVC
+That next steps allows us to define a folder where to push the data so that several members from the same project can access consistent data version, as we will see in a bit. Assuming your dataset currently live in data/:
 ```bash
-# Add data to DVC tracking
-dvc add data/
+# add data to DVC tracking
+dvc add data/ 
 
-# Push data to remote storage
+# commit and push metadata DVC file to Git (ignore data/ in Git as well)
+git add data.dvc .gitignore
+git commit -m "start tracking dataset"
+git tag -a "v1" -m "initial dataset"
+git push
+ 
+# push data to remote storage
 dvc push
 
-# Commit DVC files to Git
-git add data.dvc .dvcignore
-git commit -m "Add data tracking with DVC"
+src/
+├── .dvc/                 # DVC config and internal files (remote configuration)
+├── .dvcignore            # Like .gitignore but for DVC operations
+├── .gitignore            # Contains an entry to ignore /data
+├── data/                 # Contains actual ignored by Git
+├── data.dvc              # Metadata file tracked by Git
+└── (your project files)
+```
+This created a data.dvc file containing the MD5 hash and added the actual data file to gitignore. We will see how to interact with the datastore shortly, but before let's assume you have a new version of the dataset (remove a row in data/train.csv). You can now create a new version of the data:
+```bash
+dvc status
+dvc add data/
+git add data.dvc
+git commit -m "updated dataset"
+git tag -a "v2" -m "deleted a row in train.csv"
+git push
+dvc push
 ```
 
 ## 3. ML Pipeline Configuration
