@@ -1,5 +1,5 @@
 environment = "dev"
-aws_region  = "eu-north-1"
+aws_region  = "eu-west-1"
 
 
 s3_buckets = [
@@ -9,13 +9,13 @@ s3_buckets = [
   }
 ]
 
-ecr_repositories = [
-  {
-    key                        = "mlops-course-ehb-repository"
-    image_tag_mutability       = "MUTABLE"
-    image_scanning_configuration = {
-      scan_on_push = true
-    }
-    tags = {}
-  }
-]
+# ecr_repositories = [
+#   {
+#     key                        = "mlops-course-ehb-repository"
+#     image_tag_mutability       = "MUTABLE"
+#     image_scanning_configuration = {
+#       scan_on_push = true
+#     }
+#     tags = {}
+#   }
+# ]
