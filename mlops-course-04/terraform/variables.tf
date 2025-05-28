@@ -26,3 +26,9 @@ variable "ecr_repositories" {
   type        = list(any)
   default     = []
 }
+
+variable "apprunner_services" {
+  description = "A list of App Runner Services"
+  type        = list(any)
+  default     = []
+}
