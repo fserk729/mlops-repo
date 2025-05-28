@@ -6,10 +6,6 @@ s3_buckets = [
   {
     key  = "mlops-course-ehb-datastore"
     tags = {}
-  },
-  {
-    key  = "mlops-course-ehb-datastore-02"
-    tags = {}
   }
 ]
 
