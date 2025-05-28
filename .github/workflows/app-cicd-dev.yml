@@ -1,4 +1,4 @@
-name: mlops-cicd-dev
+name: Application CI/CD 
 
 # Controls when the workflow will run
 on:

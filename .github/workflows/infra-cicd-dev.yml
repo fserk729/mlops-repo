@@ -1,4 +1,4 @@
-name: tf-infra-cicd-dev
+name: Infrastructure CI/CD
 
 # Controls when the workflow will run
 on:
