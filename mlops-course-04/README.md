@@ -25,8 +25,6 @@ This course implements a mature MLOps pipeline with:
 - **AWS App Runner for Model Serving**: Serverless container deployment platform
 - **GitHub Actions CI/CD**: Automated workflows with manual approval gates
 
-![mlops-maturity-level-2](assets/mlops-maturity-level-2.png)
-
 ## 1. Project Structure
 
 ```bash
