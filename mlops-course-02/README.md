@@ -49,7 +49,7 @@ echo $CREDS_JSON
 
 # Create S3 Bucket
 S3_BUCKET_NAME="tf-remote-backends-ehb"
-aws s3 mb "s3://$S3_BUCKET_NAME" --region "eu-north-1"
+aws s3 mb "s3://$S3_BUCKET_NAME" --region "eu-west-1"
 
 # Enable Versioning for S3 Bucket
 aws s3api put-bucket-versioning --bucket "$S3_BUCKET_NAME" --versioning-configuration Status=Enabled
@@ -115,7 +115,7 @@ Each environment has its own backend configuration file, parameterizing the S3 b
 ```terraform
 bucket  = "terraform-backends-ehb"
 key     = "terraform-{env}.tfstate"
-region  = "eu-north-1"
+region  = "eu-west-1"
 ```
 All environment-specific or customizable settings (like region, environment, resource delimiter, and S3 buckets) are defined as variables.
 
@@ -123,7 +123,7 @@ All environment-specific or customizable settings (like region, environment, res
 ```hcl
 variable "aws_region" {
   description = "AWS region"
-  default     = "eu-north-1"
+  default     = "eu-west-1"
 }
 
 variable "environment" {
@@ -163,7 +163,7 @@ All variable values specific to an environment. Easy switching between dev, test
 `environments/{env}.tfvars`
 ```hcl
 environment = "dev"
-location    = "eu-north-1"
+location    = "eu-west-1"
 
 
 s3 = [
@@ -230,7 +230,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
+          aws-region: eu-west-1
 
       - name: Terraform Format
         run: terraform fmt -check

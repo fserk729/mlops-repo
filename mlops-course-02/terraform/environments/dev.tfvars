@@ -1,5 +1,5 @@
 environment = "dev"
-aws_region  = "eu-north-1"
+aws_region  = "eu-west-1"
 
 
 s3_buckets = [

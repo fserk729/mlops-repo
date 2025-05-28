@@ -46,7 +46,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-north-1"
+  region = "eu-west-1"
 }
 ```
 Creates an S3 bucket with a unique name.
