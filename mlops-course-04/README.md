@@ -73,7 +73,7 @@ src/
 ### Configure Remote Storage
 DVC is configured to use your S3 bucket from mlops-course-02. DVC will store all relevant information in the hidden folder .dvc, so that last step adds this folder to our Git repository (including the DVC config file .dvc/config).:
 ```bash
-dvc remote add -d storage s3://mlops-course-ehb-data-dev/data # this saves a remote entry in .dvc/config:
+dvc remote add -d storage s3://mlops-course-ehb-datastore-dev/data # this saves a remote entry in .dvc/config:
 git commit .dvc/config -m "configure dvc remote storage" # commit the config
 ```
 
