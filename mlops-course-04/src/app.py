@@ -18,7 +18,7 @@ model = joblib.load('models/model.pkl')
 
 @app.get("/")
 async def root():
-    return {"health_check": "OK"}
+    return {"health_check": "200"}
 
 @app.post("/predict")
 async def predict(input_data: InputData):
