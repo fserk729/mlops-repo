@@ -31,7 +31,7 @@ apprunner_services = [
           port = 80
         }
       }
-      auto_deployments_enabled = false
+      auto_deployments_enabled = true
     }
     tags = {}
   }
