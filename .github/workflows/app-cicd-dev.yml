@@ -43,7 +43,9 @@ jobs:
         run: dvc pull
 
       - name: Retrain model
-        run: python main.py
+        run: |
+          mkdir models/
+          python main.py
 
       - name: Login to Amazon ECR
         id: login-ecr
