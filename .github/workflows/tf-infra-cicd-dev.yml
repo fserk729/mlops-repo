@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  terraform-validate-plan-apply:
+  terraform-plan-apply:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,7 +41,17 @@ jobs:
         run: terraform validate -no-color
 
       - name: Terraform Plan
-        run: terraform plan -no-color --var-file='environments/dev.tfvars'
+        run: terraform plan -no-color --var-file='environments/dev.tfvars' -out=plan.tfout
+      
+      - name: Await for manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.token }}
+          approvers: geekzyn
+          issue-title: "Deploy Terraform Plan to dev"
+          issue-body: "Please review the Terraform Plan"
+          exclude-workflow-initiator-as-approver: false
+          timeout-minutes: 60
 
       - name: Terraform Apply
-        run: terraform apply --var-file='environments/dev.tfvars' -auto-approve
+        run: terraform apply -auto-approve plan.tfout
