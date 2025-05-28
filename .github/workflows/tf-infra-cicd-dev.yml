@@ -15,6 +15,9 @@ jobs:
     defaults:
       run:
         working-directory: mlops-course-04/terraform
+    permissions:
+      issues: write
+      # contents: read
 
     steps:
       - name: Checkout repository
