@@ -48,7 +48,7 @@ CREDS_JSON=$(aws iam create-access-key --user-name "$USER_NAME")
 echo $CREDS_JSON                                          
 
 # Create S3 Bucket
-S3_BUCKET_NAME="tf-remote-backends-ehb"
+S3_BUCKET_NAME="tf-remote-backend-ehb"
 aws s3 mb "s3://$S3_BUCKET_NAME" --region "eu-west-1"
 
 # Enable Versioning for S3 Bucket
