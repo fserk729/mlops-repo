@@ -1,35 +1,36 @@
-# Data Versioning and Model Containerization with DVC and Docker
+# MLOps End-to-End Pipeline 
 
-This guide demonstrates how to implement data versioning using DVC (Data Version Control) and containerize ML models for deployment. You'll learn to track data changes, manage ML pipelines, and package models in Docker containers for scalable, reproducible MLOps workflows.
-
+This guide demonstrates how to implement a complete MLOps pipeline featuring automated CI/CD workflows and cloud deployment using AWS ECR and App Runner. You will learn how to implement MLflow for experiment tracking and model versioning.You'll learn to build end-to-end automation that handles data changes, model retraining, containerization, and deployment.
 
 ## Prerequisites
 
 * [Python](https://www.python.org)
 * [Docker](https://docs.docker.com/get-docker/)
 * [AWS CLI](https://aws.amazon.com/cli/)
+* [GitHub](https://docs.github.com/en/get-started/start-your-journey/creating-an-account-on-github)
 
 ## Problem Statement
 
-As ML projects mature, several challenges emerge:
-- **Data Drift**: Training data changes over time, requiring versioning
-- **Pipeline Reproducibility**: Need to track data transformations and model training steps
-- **Model Deployment**: Models need to be packaged consistently for production
-- **Collaboration**: Teams need shared access to datasets and model artifacts
-
-![mlops-continuous-delivery-and-automation-pipelines-in-machine-learning-2-manual-ml](assets/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning-2-manual-ml.svg)
+As MLOps projects reach production maturity, several advanced challenges emerge:
+- **Experiment Tracking**: Need to track model experiments, parameters, and metrics systematically
+- **Model Registry**: Centralized model versioning and lifecycle management
+- **Automated Retraining**: Trigger model updates when data or code changes
+- **Deployment**: Seamless container orchestration and serving infrastructure
 
 ## Solution Architecture
 
-This course implements:
-- **DVC for Data Versioning and Pipeline Management**: Track large datasets and automate ML pipelines
-- **Docker Containerization**: Package models for consistent deployment
+This course implements a mature MLOps pipeline with:
+- **MLflow for Experiment Tracking and Model Registry**: Centralized experiment management
+- **AWS ECR for Container Registry**: Secure Docker image storage and versioning  
+- **AWS App Runner for Model Serving**: Serverless container deployment platform
+- **GitHub Actions CI/CD**: Automated workflows with manual approval gates
 
-![mlops-code-maturity-level-1-part-0](assets/mlops-code-maturity-level-1-part-0.png)
+![mlops-maturity-level-2](assets/mlops-maturity-level-2.png)
+
 ## 1. Project Structure
 
 ```bash
-mlops-course-03/
+mlops-course-04/
 ├── src/
 │   ├── data/
 │   ├── models/
@@ -38,229 +39,319 @@ mlops-course-03/
 │   │   ├── ingest.py         # Data ingestion pipeline
 │   │   ├── predict.py        # Model prediction pipeline
 │   │   └── train.py          # Model training pipeline
+│   ├── .dvc/                 # DVC configuration
 │   ├── .gitignore            # Files to ignore in Git
+│   ├── app.py                # FastAPI model serving application
 │   ├── config.yml            # ML pipeline configuration
-│   ├── main.py               # Main pipeline orchestrator
+│   ├── data.dvc              # DVC data tracking metadata
+│   ├── Dockerfile            # Container definition
+│   ├── main.py               # MLflow-integrated pipeline orchestrator
 │   └── requirements.txt      # Python dependencies
 ├── terraform/                # Infrastructure as Code
+│   ├── modules/
+│   │   ├── apprunner-service/   # App Runner service module
+│   │   ├── ecr-repository/      # ECR repository module  
+│   │   └── s3-bucket/           # S3 bucket module
+│   ├── backends/
+│   │   └── dev.conf             # Terraform backend configuration
+│   ├── environments/
+│   │   └── dev.tfvars           # Environment-specific variables
+│   ├── apprunner_services.tf    # App Runner infrastructure
+│   ├── ecr_repositories.tf      # ECR infrastructure
+│   ├── provider.tf              # Terraform provider configuration
+│   ├── s3_buckets.tf            # S3 infrastructure
+│   └── variables.tf             # Variable definitions
+├── .github/
+│   └── workflows/
+│       ├── app-cicd-dev.yml     # Application CI/CD pipeline
+│       └── infra-cicd-dev.yml   # Infrastructure CI/CD pipeline
 └── README.md
 ```
 
-## 2. Python Virtual Environment Setup (you can use [uv](https://docs.astral.sh/uv/) as an alternative)
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+## 2. Add ECR and App Runner Services to Infrastructure
+
+### ECR Repository Module
+The ECR (Elastic Container Registry) module provides secure Docker image storage:
+
+```hcl
+# modules/ecr-repository/main.tf
+resource "aws_ecr_repository" "ecr" {
+  name                 = local.name
+  image_tag_mutability = var.image_tag_mutability
+  dynamic "image_scanning_configuration" {
+    for_each = var.image_scanning_configuration
+    content {
+      scan_on_push = var.image_scanning_configuration.scan_on_push
+    }
+  }
+  tags = var.tags
+}
 ```
 
-## 3. DVC Remote Storage as a datastore
-The role of a datastore is to store and manage collections of data. DVC works on top of Git and is language- and framework-agnostic. It can store data locally or in storage providers such as AWS S3, Azure Blob Storage, SFTP and HDFS; in our case, we will store it in AWS S3. To avoid performing diffs on large and potentially binary files, DVC creates MD5 hash of each file instead and those are versioned by Git.
+### App Runner Service Module  
+The App Runner module provides serverless container deployment:
 
-### Initialize DVC Repository
-```bash
-cd mlops-course-03/src
-dvc init --subdir # initialize dvc inside a SCM tracked subdirectory
-git commit -m "initialize dvc"
-```
-After running dvc init, DVC sets up the project with the necessary configuration to start tracking data. Your directory structure will look like this:
-```
-src/
-├── .dvc/                 # DVC config and internal files
-├── .dvcignore            # Like .gitignore but for DVC operations
-└── (your project files)
-```
+```hcl
+# modules/apprunner-service/main.tf
+resource "aws_apprunner_service" "ars" {
+  service_name = local.service_name
 
-### Configure Remote Storage
-DVC is configured to use your S3 bucket from mlops-course-02. DVC will store all relevant information in the hidden folder .dvc, so that last step adds this folder to our Git repository (including the DVC config file .dvc/config).:
-```bash
-dvc remote add -d storage s3://mlops-course-ehb-datastore-dev/data # this saves a remote entry in .dvc/config:
-git commit .dvc/config -m "configure dvc remote storage" # commit the config
-```
-
-### Data Version Management
-That next steps allows us to define a folder where to push the data so that several members from the same project can access consistent data version, as we will see in a bit. Assuming your dataset currently live in data/:
-```bash
-# add data to DVC tracking
-dvc add data/ 
-
-# commit and push metadata DVC file to Git (ignore data/ in Git as well)
-git add data.dvc .gitignore
-git commit -m "start tracking dataset"
-git tag -a "v1" -m "initial dataset"
-git push
- 
-# push data to remote storage
-dvc push
-
-src/
-├── .dvc/                 # DVC config and internal files (remote configuration)
-├── .dvcignore            # Like .gitignore but for DVC operations
-├── .gitignore            # Contains an entry to ignore /data
-├── data/                 # Contains actual ignored by Git
-├── data.dvc              # Metadata file tracked by Git
-└── (your project files)
-```
-This created a data.dvc file containing the MD5 hash and added the actual data file to gitignore. We will see how to interact with the datastore shortly, but before let's assume you have a new version of the dataset (remove a row in data/train.csv). You can now create a new version of the data:
-```bash
-dvc status
-dvc add data/
-git add data.dvc
-git commit -m "updated dataset"
-git tag -a "v2" -m "deleted a row in train.csv"
-git push
-dvc push
-```
-In case you'd like to modify your dataset from a past version, you first need to pull the version you'd like to use from DVC, update it as you like and push the new version back to DVC with the appropriate tag:
-```bash
-git log --oneline --grep="data" # explore commit messages to get more information about each dataset version
-git checkout tags/v1 data.dvc   # get data.dvc associated with v1
-dvc pull                        # pull the actual dataset associated with data.dvc
-dvc add data/
-git add data.dvc
-git commit -m "data: updated dataset"
-git tag -a "v1b" -m "deleted a row in train.csv"
-git push
-dvc pus
+  source_configuration {
+    authentication_configuration {
+      access_role_arn = aws_iam_role.iamr.arn
+    }
+    image_repository {
+      image_identifier      = var.source_configuration.image_repository.image_identifier
+      image_repository_type = var.source_configuration.image_repository.image_repository_type
+      image_configuration {
+        port = var.source_configuration.image_repository.image_configuration.port
+      }
+    }
+    auto_deployments_enabled = var.source_configuration.auto_deployments_enabled
+  }
+  tags = var.tags
+}
 ```
 
-## 4. ML Pipelines and Configuration
-The `config.yml` file centralizes all pipeline parameters:
+### Environment Configuration
+```hcl
+# environments/dev.tfvars
+ecr_repositories = [
+  {
+    key                  = "mlops-course-ehb-repository"
+    image_tag_mutability = "MUTABLE"
+    image_scanning_configuration = {
+      scan_on_push = true
+    }
+    tags = {}
+  }
+]
 
+apprunner_services = [
+  {
+    key = "mlops-course-ehb-app"
+    source_configuration = {
+      image_repository = {
+        image_identifier      = "926022988101.dkr.ecr.eu-west-1.amazonaws.com/ecr-mlops-course-ehb-repository-dev:latest"
+        image_repository_type = "ECR"
+        image_configuration = {
+          port = 80
+        }
+      }
+      auto_deployments_enabled = true
+    }
+    tags = {}
+  }
+]
+```
+
+## 3. MLflow Integration for Experiment Tracking
+
+### Enhanced Main Pipeline with MLflow
+The `main.py` file now integrates MLflow for comprehensive experiment tracking:
+
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn.metrics import classification_report
+
+def mlflow_main():
+    with open('config.yml', 'r') as file:
+        config = yaml.safe_load(file)
+
+    mlflow.set_experiment("Model Training Experiment")
+
+    with mlflow.start_run() as run:
+        # Execute ML pipeline steps...
+        
+        # Log model parameters
+        model_params = config['model']['params']
+        mlflow.log_params(model_params)
+        
+        # Log performance metrics
+        mlflow.log_metric("accuracy", accuracy)
+        mlflow.log_metric("roc", roc_auc_score)
+        mlflow.log_metric('precision', report['weighted avg']['precision'])
+        mlflow.log_metric('recall', report['weighted avg']['recall'])
+        
+        # Log model with signature
+        signature = mlflow.models.infer_signature(
+            model_input=X_train, 
+            model_output=trainer.pipeline.predict(X_test)
+        )
+        mlflow.sklearn.log_model(trainer.pipeline, "model", signature=signature)
+
+        # Register model in MLflow Model Registry
+        model_name = "insurance_model" 
+        model_uri = f"runs:/{run.info.run_id}/model"
+        mlflow.register_model(model_uri, model_name)
+```
+
+### MLflow Benefits
+- **Experiment Comparison**: Track multiple model runs and compare performance
+- **Parameter Tracking**: Automatically log hyperparameters and model configurations
+- **Model Registry**: Centralized model versioning with lifecycle management
+- **Artifact Storage**: Store models, plots, and other experiment artifacts
+- **Reproducibility**: Complete experiment reproduction from logged metadata
+
+## 4. Production-Ready CI/CD Workflows
+
+### Infrastructure CI/CD with Manual Approval
 ```yaml
-data: 
-  train_path: data/train.csv
-  test_path: data/test.csv
+# .github/workflows/infra-cicd-dev.yml
+name: Infrastructure CI/CD
 
-train:
-  test_size: 0.2
-  random_state: 42
-  shuffle: true
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths: 
+      - 'mlops-course-04/terraform/**'
+  workflow_dispatch:
 
-model:
-  name: GradientBoostingClassifier
-  params:
-    max_depth: null
-    n_estimators: 10
-  store_path: models/
-```
-The `Ingestion` class loads training and test datasets.
+jobs:
+  terraform-plan-apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mlops-course-04/terraform
+    permissions:
+      issues: write
 
-The `Cleaner` class handles data preprocessing:
-- Removes unnecessary columns
-- Handles missing values using imputation strategies
-- Removes outliers using IQR method
-- Preprocesses monetary values
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-The `Trainer` class implements:
-- **Preprocessing**: StandardScaler, MinMaxScaler, OneHotEncoder
-- **SMOTE**: Handles class imbalance
-- **Model Selection**: Supports multiple algorithms (RandomForest, GradientBoosting, DecisionTree)
-- **Model Persistence**: Saves trained models using joblib
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-The `Predictor` class provides:
-- Model loading from saved artifacts
-- Batch prediction capabilities
-- Model evaluation metrics (accuracy, ROC-AUC, classification report)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
 
-```bash
-# execute complete pipeline
-python main.py
-```
+      - name: Terraform Format
+        run: terraform fmt -check
+        continue-on-error: true
 
-The pipeline will:
-1. **Ingest** data from configured sources
-2. **Clean** and preprocess the data
-3. **Train** the specified model with SMOTE balancing
-4. **Evaluate** model performance on test data
-5. **Save** the trained model for deployment
+      - name: Terraform Init
+        run: terraform init --backend-config='backends/dev.conf'
 
-### Sample Output
-```
-INFO:root:Data ingestion completed successfully
-INFO:root:Data cleaning completed successfully  
-INFO:root:Model training completed successfully
-INFO:root:Model evaluation completed successfully
+      - name: Terraform Validate
+        run: terraform validate -no-color
 
-============= Model Evaluation Results ==============
-Model: GradientBoostingClassifier
-Accuracy Score: 0.8547, ROC AUC Score: 0.8932
+      - name: Terraform Plan
+        run: terraform plan -no-color --var-file='environments/dev.tfvars' -out=plan.tfout
+      
+      - name: Approval
+        uses: trstringer/manual-approval@v1
+        timeout-minutes: 60
+        with:
+          secret: ${{ github.token }}
+          approvers: geekzyn
+          issue-title: "Deploy Terraform Plan to dev"
+          issue-body: "Please review the Terraform Plan"
+          exclude-workflow-initiator-as-approver: false
 
-              precision    recall  f1-score   support
-           0       0.86      0.95      0.90      1500
-           1       0.85      0.65      0.74       500
-
-    accuracy                           0.85      2000
-   macro avg       0.85      0.80      0.82      2000
-weighted avg       0.85      0.85      0.85      2000
-=====================================================
+      - name: Terraform Apply
+        run: terraform apply -auto-approve plan.tfout
 ```
 
-## 5. Model Containerization
-Create `Dockerfile` file in `src/`
-```dockerfile
-# Use the official Python base image
-FROM python:3.13-slim
+### Application CI/CD with Automated Retraining
+```yaml
+# .github/workflows/app-cicd-dev.yml
+name: Application CI/CD 
 
-# Set the working directory inside the container
-WORKDIR /app
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths: 
+      - 'mlops-course-04/src/**'
+  workflow_dispatch:
 
-# Copy the application code and models to the working directory
-COPY app.py .
-COPY models/ ./models/
+jobs:
+  retrain-build-push:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mlops-course-04/src
 
-# Copy the requirements file to the working directory
-COPY requirements.txt .
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# Install the Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
-# Run the FastAPI application using uvicorn server
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+      
+      - name: Pull latest data with DVC
+        run: dvc pull
+
+      - name: Retrain model
+        run: python main.py
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Build, tag, and push docker image to Amazon ECR 
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 ```
 
-Create `app.py` in `src/`
-```Python
-from fastapi import FastAPI
-from pydantic import BaseModel
-import pandas as pd
-import joblib
+## 5. GitHub Actions Workflow
 
-app = FastAPI()
+### GitHub Secrets Configuration
+Set up the following secrets in your GitHub repository:
+- `AWS_ACCESS_KEY_ID`: AWS access key for automation
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key for automation  
+- `ECR_REPOSITORY`: ECR repository name (e.g., `ecr-mlops-course-ehb-repository-dev`)
 
-class InputData(BaseModel):
-    Gender: str
-    Age: int
-    HasDrivingLicense: int
-    RegionID: float
-    Switch: int
-    PastAccident: str
-    AnnualPremium: float
+### Automated Trigger Points
+The CI/CD pipeline automatically triggers on:
+- **Code Changes**: Modifications to `mlops-course-04/src/**`
+- **Data Changes**: When new data is pushed via DVC `mlops-course-04/src/data.dvc`
+- **Configuration Updates**: Changes to model parameters or pipeline configuration
 
-model = joblib.load('models/model.pkl')
+### Complete Automation Flow
+1. **Data Update**: New data pushed to DVC remote storage
+2. **Pull Request**: Developer creates PR with code/config changes
+3. **Automated Pipeline**: GitHub Actions pulls latest data and retrains model
+4. **Model Registry**: New model version registered in MLflow
+5. **Containerization**: Updated model packaged in Docker container
+6. **ECR Push**: Container image pushed to AWS ECR
+7. **Auto-deployment**: App Runner automatically deploys new container version
+8. **Production Serving**: Updated model serves predictions via REST API
 
-@app.get("/")
-async def root():
-    return {"health_check": "OK"}
+### Model Serving Endpoints
+Once deployed, your model will be available at:
+- **Health Check**: `https://your-app-runner-url.eu-west-1.awsapprunner.com/`
+- **API Documentation**: `https://your-app-runner-url.eu-west-1.awsapprunner.com/docs`
+- **Predictions**: `https://your-app-runner-url.eu-west-1.awsapprunner.com/predict`
 
-@app.post("/predict")
-async def predict(input_data: InputData):
-    
-        df = pd.DataFrame([input_data.model_dump().values()], 
-                          columns=input_data.model_dump().keys())
-        pred = model.predict(df)
-        return {"predicted_class": int(pred[0])}
-```
-
-```bash
-# Build Docker image
-docker build -t mlops-course-03-image .
-# Run container
-docker run -d --name mlops-course-03-container -p 80:80 mlops-course-03-image
-```
-You can access the API docs locally at `http://127.0.0.1/docs` and make predictionsat `http://127.0.0.1/predict`:
+### Sample Prediction Request
 ```bash
 curl -X 'POST' \
-  'http://127.0.0.1/predict' \
+  'https://your-app-runner-url.eu-west-1.awsapprunner.com/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -273,3 +364,16 @@ curl -X 'POST' \
   "AnnualPremium": 1885.05
 }'
 ```
+
+## 6. Key Achievements
+
+This MLOps pipeline achieves:
+- **Automated Retraining**: Models update automatically when data changes
+- **Experiment Tracking**: Complete visibility into model development lifecycle
+- **Model Registry**: Centralized model versioning and artifact management
+- **Infrastructure as Code**: Reproducible cloud resources via Terraform
+- **Manual Approval Gates**: Production safety with human oversight
+- **Container Orchestration**: Scalable, serverless model deployment
+- **End-to-End Automation**: From data changes to production deployment
+
+This represents a mature MLOps implementation ready for enterprise production workloads, combining the best practices of DevOps automation with machine learning lifecycle management.
