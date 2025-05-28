@@ -192,7 +192,7 @@ def mlflow_main():
 - **Artifact Storage**: Store models, plots, and other experiment artifacts
 - **Reproducibility**: Complete experiment reproduction from logged metadata
 
-## 4. Production-Ready CI/CD Workflows
+## 4. CI/CD Workflows
 
 ### Infrastructure CI/CD with Manual Approval
 ```yaml
