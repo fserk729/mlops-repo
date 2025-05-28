@@ -43,15 +43,15 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -no-color --var-file='environments/dev.tfvars' -out=plan.tfout
       
-      - name: Await for manual approval
+      - name: Approval
         uses: trstringer/manual-approval@v1
+        timeout-minutes: 60
         with:
           secret: ${{ github.token }}
           approvers: geekzyn
           issue-title: "Deploy Terraform Plan to dev"
           issue-body: "Please review the Terraform Plan"
           exclude-workflow-initiator-as-approver: false
-          timeout-minutes: 60
 
       - name: Terraform Apply
         run: terraform apply -auto-approve plan.tfout
