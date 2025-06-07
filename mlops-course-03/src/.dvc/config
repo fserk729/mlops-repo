@@ -1,4 +1,4 @@
 [core]
     remote = storage
 ['remote "storage"']
-    url = s3://mlops-course-ehb-datastore-dev/data
+    url = s3://mlops-course-ehb-datastore-fabian2025-2-dev/data

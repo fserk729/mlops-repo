@@ -1,8 +1,4 @@
-Access Key: 
-Secret Access Key: 
-Access Key: AKIA2K7P64DVUJ7B4LNF
-Secret Access Key: 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
-Access Key: AKIA2K7P64DV5KUJEFHV
-Secret Access Key: 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
-Access Key: AKIA2K7P64DVU2CIEQDA
-Secret Access Key: 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
+----------- 07/06/2025 ------------
+Access Key: AKIA2K7P64DV6JUXGGWS
+Secret Access Key: 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
+----------------
