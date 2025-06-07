@@ -1,0 +1,20 @@
+# Ignore all .terraform folders recursively
+**/.terraform/
+
+# Ignore provider binaries (like large .exe files)
+*.exe
+
+# Ignore compressed archives
+*.zip
+*.tar.gz
+*.rar
+
+# Ignore GitHub workflows folder (if you have your own)
+.github/
+
+# Ignore assets folder
+assets/
+
+# Optional OS-generated files
+.DS_Store
+Thumbs.db

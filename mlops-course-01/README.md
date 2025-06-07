@@ -1,3 +1,4 @@
+
 # AWS Infrastructure Setup with Terraform for Local Development
 
 This guide walks you through setting up basic AWS infrastructure using Terraform for local development. You'll learn how to provision an AWS S3 bucket as a demonstration of Terraform's infrastructure-as-code capabilities.
@@ -67,3 +68,7 @@ terraform plan                # Preview what will be created
 terraform apply               # Create the resources
 terraform destroy             # Remove all managed resources
 ```
+
+# mlops-repo
+Repository for EhB course on ML operations
+
