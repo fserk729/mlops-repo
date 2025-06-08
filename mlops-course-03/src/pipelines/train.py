@@ -56,4 +56,5 @@ class Trainer:
 
     def save_model(self):
         model_file_path = os.path.join(self.model_path, 'model.pkl')
+        os.makedirs(self.model_path, exist_ok=True)  # Ensure directory exists
         joblib.dump(self.pipeline, model_file_path)
